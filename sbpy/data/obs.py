@@ -8,6 +8,7 @@ Class for storing and querying observations
 
 created on July 3, 2019
 """
+from tempfile import NamedTemporaryFile
 
 from astropy.time import Time
 from astroquery.mpc import MPC
@@ -90,9 +91,9 @@ class Obs(Ephem):
                  'astroquery.mpc.MPCClass.get_observations: '
                  '{}').format(e))
 
-        results['epoch'] = Time(results['epoch'].to('d').value,
-                                scale='utc', format='jd')
-
+        if 'epoch' in results.columns:
+            results['epoch'] = Time(results['epoch'].to('d').value,
+                                    scale='utc', format='jd')
         return cls.from_table(results)
 
     @cite({'software: astroquery': '2019AJ....157...98G'})
@@ -215,3 +216,25 @@ class Obs(Ephem):
 
         return Obs.from_table(hstack([all_obs, all_eph]),
                               meta=self.meta)
+
+    def to_file(self, filename: str, format: str = 'ascii', overwrite: bool = False):
+        # if we've been requested to write as MPC80 format then we make sure the data is in the expected format already
+        if format == 'mpc80':
+
+            # make sure the data was fetched on the MPC 80 column format
+            if self.table.colnames != ['obs']:
+                raise ValueError('Observations object not in the required 80 character line format')
+
+            # write to ASCII  in fixed-width format, the supported format which is closest to what we want
+            # target format described here: https://www.minorplanetcenter.net/iau/info/OpticalObs.html
+            with NamedTemporaryFile() as tmpfile:
+                Ephem.to_file(self, filename=tmpfile.name, format='ascii.fixed_width_no_header', overwrite=True)
+
+                # clean up our file to get the actual desired format
+                with open(tmpfile.name) as src_file, open(filename, 'w') as final_file:
+                    for line in src_file.readlines():
+                        print(line[2:-2])
+                        final_file.write(line[2:-3] + '\n')
+
+        else:
+            Ephem.to_file(self, filename=filename, format=format, overwrite=overwrite)
