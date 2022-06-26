@@ -221,19 +221,22 @@ class Obs(Ephem):
         # if we've been requested to write as MPC80 format then we make sure the data is in the expected format already
         if format == 'mpc80':
 
-            # make sure the data was fetched on the MPC 80 column format
+            # use the presence of an 'obs' column as the indicator to confirm that the data
+            # was fetched in the MPC 80 column format, for example, like so:
+            # test_obs = Obs.from_mpc(targetid='2011 MD', id_type='asteroid designation', get_mpcformat=True)
             if self.table.colnames != ['obs']:
                 raise ValueError('Observations object not in the required 80 character line format')
 
-            # write to ASCII  in fixed-width format, the supported format which is closest to what we want
+            # write to ASCII in fixed-width format, the existing format which is closest to what we want
             # target format described here: https://www.minorplanetcenter.net/iau/info/OpticalObs.html
-            with NamedTemporaryFile() as tmpfile:
-                Ephem.to_file(self, filename=tmpfile.name, format='ascii.fixed_width_no_header', overwrite=True)
+            with NamedTemporaryFile() as tmp_file:
+                # write to the temporary file using the existing ASCII format
+                Ephem.to_file(self, filename=tmp_file.name, format='ascii.fixed_width_no_header', overwrite=True)
 
-                # clean up our file to get the actual desired format
-                with open(tmpfile.name) as src_file, open(filename, 'w') as final_file:
+                # clean up the file to get the actual desired format
+                with open(tmp_file.name) as src_file, open(filename, 'w') as final_file:
                     for line in src_file.readlines():
-                        print(line[2:-2])
+                        # re-write the line, chopping off the first two and the final three characters
                         final_file.write(line[2:-3] + '\n')
 
         else:
